@@ -86,3 +86,7 @@ if __name__ == "__main__":
             print("AI Doctor:", ans, "\n")
         except Exception as e:
             print("❌ Error:", e, "\n")
+
+
+
+            
