@@ -1,109 +1,90 @@
+import os
+import tempfile
 import streamlit as st
-from backend import answer_query  # Import the answer_query function from your backend
+import speech_recognition as sr
+from pydub import AudioSegment
+from langdetect import detect
+from deep_translator import GoogleTranslator
+from gtts import gTTS
+from backend import answer_query  # তোমার backend থেকে answer_query import হবে
 
 # Streamlit page configuration
-st.set_page_config(page_title="talkDOC - AI Doctor Chatbot", page_icon="🩺", layout="centered")
+st.set_page_config(page_title="talkDOC - Voice Doctor", page_icon="🩺", layout="centered")
 
-# Custom CSS for a modern, health-themed design with professional fonts
-st.markdown(
-    """
-    <style>
-    .main {
-        background-color: #f0f4f8;
-        padding: 20px;
-        border-radius: 10px;
-    }
-    .stTextInput > div > div > input {
-        border: 2px solid #4CAF50;
-        border-radius: 8px;
-        padding: 10px;
-        font-size: 16px;
-        font-family: 'Arial', sans-serif;
-    }
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-size: 16px;
-        border: none;
-        font-family: 'Arial', sans-serif;
-    }
-    .stButton > button:hover {
-        background-color: #45a049;
-    }
-    .chat-message {
-        padding: 15px;
-        margin: 10px 0;
-        border-radius: 10px;
-        font-size: 16px;
-        font-family: 'Arial', sans-serif;
-    }
-    .user-message {
-        color: #000000;
-        background-color: #d1e7dd;
-        border-left: 5px solid #4CAF50;
-    }
-    .ai-message {
-        background-color: #b3d4fc; /* Darker blue for better contrast */
-        border-left: 5px solid #2196F3;
-        color: #000000; /* Black text for readability */
-        font-family: 'Helvetica', 'Arial', sans-serif; /* Professional font */
-    }
-    .ai-message p {
-        margin: 10px 0;
-        line-height: 1.5;
-    }
-    h1 {
-        color: #2e7d32;
-        text-align: center;
-        font-family: 'Arial', sans-serif;
-    }
-    .footer {
-        text-align: center;
-        color: #666;
-        margin-top: 20px;
-        font-size: 14px;
-        font-family: 'Arial', sans-serif;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Title
+st.title("🩺 talkDOC - Voice Doctor Assistant")
+st.markdown("🎙️ Record your health-related question, then press **Send** to get an answer.")
 
-# Initialize session state for chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# Session state for storing audio
+if "voice_file" not in st.session_state:
+    st.session_state.voice_file = None
 
-# Title and header
-st.title("🩺 talkDOC - Your AI Doctor Assistant")
-st.markdown("Ask health-related questions, and I'll provide clear, helpful answers based on web information.")
+# Voice input (record / upload)
+audio_file = st.audio_input("Record your question here...")
 
-# Input form for user query
-with st.form(key="query_form", clear_on_submit=True):
-    user_query = st.text_input("Your Question:", placeholder="E.g., What are symptoms of a cold?")
-    submit_button = st.form_submit_button("Ask")
+if audio_file is not None:
+    st.session_state.voice_file = audio_file  # store temporarily
+    st.success("✅ Voice recorded. Now press **Send** to get answer.")
 
-# Handle query submission
-if submit_button and user_query:
-    try:
-        # Get AI response from backend
-        ai_response = answer_query(user_query)
-        # Append to chat history
-        st.session_state.chat_history.append({"user": user_query, "ai": ai_response})
-    except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+# Send button
+if st.button("Send Voice"):
+    if st.session_state.voice_file is None:
+        st.warning("⚠️ Please record your question first.")
+    else:
+        try:
+            with st.spinner("⏳ Generating answer... Please wait..."):
+                # Save uploaded audio to temp WAV
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+                    tmp_wav.write(st.session_state.voice_file.getbuffer())
+                    wav_path = tmp_wav.name
 
-# Display chat history
-for chat in st.session_state.chat_history:
-    # User message
-    st.markdown(f'<div class="chat-message user-message"><strong>You:</strong> {chat["user"]}</div>', unsafe_allow_html=True)
-    # AI response with text blocks
-    st.markdown(
-        f'<div class="chat-message ai-message"><strong>AI Doctor:</strong>'
-        f'<p>{chat["ai"].replace("\n", "</p><p>")}</p></div>',
-        unsafe_allow_html=True
-    )
+                # Convert to WAV if necessary
+                if not wav_path.endswith(".wav"):
+                    sound = AudioSegment.from_file(wav_path)
+                    wav_path = wav_path.replace(".ogg", ".wav").replace(".mp3", ".wav")
+                    sound.export(wav_path, format="wav")
+
+                # Speech to Text
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(wav_path) as source:
+                    audio_data = recognizer.record(source)
+                    user_text = recognizer.recognize_google(audio_data)
+
+                # Detect language
+                lang = detect(user_text)
+
+                # Translate to English if Bangla
+                if lang == "bn":
+                    user_text_en = GoogleTranslator(source="bn", target="en").translate(user_text)
+                else:
+                    user_text_en = user_text
+
+                # Call backend AI Doctor
+                ai_response_en = answer_query(user_text_en)
+
+                # Translate back to Bangla if user spoke Bangla
+                if lang == "bn":
+                    ai_response = GoogleTranslator(source="en", target="bn").translate(ai_response_en)
+                else:
+                    ai_response = ai_response_en
+
+                # Text to Speech (voice reply)
+                tts = gTTS(ai_response, lang="bn" if lang == "bn" else "en")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_mp3:
+                    tts.save(tmp_mp3.name)
+                    st.audio(tmp_mp3.name, format="audio/mp3")
+
+                # Show transcripts
+                st.markdown(f"**🗣️ You said:** {user_text}")
+                st.markdown(f"**🤖 AI Doctor:** {ai_response}")
+
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
 
 # Footer
-st.markdown('<div class="footer">Powered by talkDOC | Not a substitute for professional medical advice</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div style="text-align:center;color:#666;margin-top:20px;font-size:14px;">'
+    'Powered by talkDOC | Not a substitute for professional medical advice'
+    '</div>',
+    unsafe_allow_html=True
+)
