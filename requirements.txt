@@ -1,0 +1,10 @@
+requests
+python-dotenv
+langchain-groq
+langchain-core
+streamlit
+speechrecognition
+pydub
+langdetect
+deep-translator
+gtts
