@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -74,7 +75,11 @@ Extra Google Context:
 Final Refined Answer:
 """)
     res = (prompt | llm_groq_refine).invoke({"raw_answer": raw_answer, "extra_context": extra_context})
-    return res.content if hasattr(res, "content") else str(res)
+    refined = res.content if hasattr(res, "content") else str(res)
+
+    # 🚫 Remove <think>...</think> blocks
+    refined = re.sub(r"<think>.*?</think>", "", refined, flags=re.DOTALL).strip()
+    return refined
 
 # 🔹 Final Answer Flow
 def answer_query(query: str):
@@ -85,7 +90,7 @@ def answer_query(query: str):
 
 # 🔹 Interactive Chat
 if __name__ == "__main__":
-    print("🤖 AI Doctor Chatbot (Refined with Google Search + Qwen‑3‑32B)\n")
+    print("🤖 AI Doctor Chatbot (Refined with Google Search + Qwen-3-32B)\n")
     while True:
         q = input("You: ")
         if q.lower() in ["exit", "quit"]:
@@ -97,4 +102,3 @@ if __name__ == "__main__":
             print(refined, "\n")
         except Exception as e:
             print("❌ Error:", e, "\n")
-

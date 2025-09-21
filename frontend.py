@@ -6,7 +6,7 @@ from pydub import AudioSegment
 from langdetect import detect
 from deep_translator import GoogleTranslator
 from gtts import gTTS
-from backend import answer_query  # তোমার backend থেকে answer_query import হবে
+from backend import answer_query  
 
 # Streamlit page configuration
 st.set_page_config(page_title="talkDOC - Voice Doctor", page_icon="🩺", layout="centered")
