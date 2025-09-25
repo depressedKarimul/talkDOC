@@ -1,41 +1,49 @@
 import os
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_core.embeddings import Embeddings
+from sentence_transformers import SentenceTransformer
+from tqdm import tqdm  # progress bar
 
-# Disable oneDNN optimizations
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+# 1. Load environment variables
+load_dotenv()
 
-# === Step 1: Load PDF ===
-PDF_FILE = "data/disease_symptoms.pdf"
-loader = PyPDFLoader(PDF_FILE)
-documents = loader.load()
-print(f"[INFO] Loaded {len(documents)} pages from {PDF_FILE}")
+print("📂 Step 1: Loading PDF...")
+loader = PyPDFLoader("data/disease_symptoms.pdf")
+docs = loader.load()
+print(f"✅ Loaded {len(docs)} pages from PDF")
 
-# === Step 2: Split text into chunks ===
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=80,
-    chunk_overlap=40,
-    separators=["\n\n", "\n", ".", ",", " "]
-)
-chunks = splitter.split_documents(documents)
-print(f"[INFO] Created {len(chunks)} text chunks.")
+# 2. Split into chunks
+print("✂️ Step 2: Splitting text into chunks...")
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+chunks = splitter.split_documents(docs)
+print(f"✅ Created {len(chunks)} chunks")
 
-# === Step 3: Use HuggingFaceEmbeddings WITHOUT sentence-transformers ===
-EMBEDDING_MODEL_NAME = "distilbert-base-uncased"   # lightweight, TF-free
-embedding_model = HuggingFaceEmbeddings(
-    model_name=EMBEDDING_MODEL_NAME,
-    model_kwargs={"device": "cpu"},        # or "cuda" if you have GPU
-    encode_kwargs={"normalize_embeddings": True}
-)
-print(f"[INFO] Using embedding model: {EMBEDDING_MODEL_NAME}")
+# 3. SentenceTransformer wrapper
+class SentenceTransformerEmbeddings(Embeddings):
+    def __init__(self, model_name="all-MiniLM-L6-v2"):
+        print(f"🧠 Step 3: Loading embedding model → {model_name}")
+        self.model = SentenceTransformer(model_name)
+        print("✅ Model loaded successfully")
 
-# === Step 4: Build & Save FAISS Vector Store ===
-DB_FAISS_PATH = "vectorstore/db_faiss_pdf"
-os.makedirs(os.path.dirname(DB_FAISS_PATH), exist_ok=True)
+    def embed_documents(self, texts):
+        print(f"🔄 Embedding {len(texts)} documents...")
+        return self.model.encode(texts, convert_to_numpy=True, show_progress_bar=True).tolist()
 
-db = FAISS.from_documents(chunks, embedding_model)
-db.save_local(DB_FAISS_PATH)
+    def embed_query(self, text):
+        return self.model.encode([text], convert_to_numpy=True)[0].tolist()
 
-print(f"[SUCCESS] FAISS vector store saved at: {DB_FAISS_PATH}")
+# 4. Initialize embedding object
+embedding = SentenceTransformerEmbeddings()
+
+# 5. Store in FAISS
+print("📦 Step 4: Creating FAISS index...")
+vectorstore = FAISS.from_documents(tqdm(chunks, desc="🔍 Embedding Chunks"), embedding=embedding)
+print("✅ FAISS index created")
+
+# 6. Save index locally
+vectorstore.save_local("faiss_index_sentence")
+print("💾 Step 5: FAISS index saved as 'faiss_index_sentence'")
+print("🎉 All steps completed successfully!")

@@ -1,12 +1,13 @@
 # talkDOC - AI Doctor Chatbot
 
 ## Overview
-talkDOC is an AI-powered chatbot designed to provide accurate and helpful responses to health-related questions using the Groq language model and real-time web search capabilities via the Serper.dev API. It supports both text-based and voice-based interactions, with voice input/output capabilities and language translation for Bangla and English. The chatbot delivers clear, concise, and user-friendly answers through an interactive terminal interface or a Streamlit web interface.
+talkDOC is an AI-powered chatbot designed to provide accurate and helpful responses to health-related questions using the Groq language model and real-time web search capabilities via the Serper.dev API. It supports both text-based and voice-based interactions, with voice input/output capabilities and language translation for Bangla and English. The chatbot delivers clear, concise, and user-friendly answers through an interactive terminal interface or a Streamlit web interface. Additionally, it processes health-related PDFs to create a searchable FAISS vector store for enhanced query responses.
 
 ## Features
-- **Health-Focused Responses**: Provides accurate and fact-checked answers to health-related questions using context from web searches.
+- **Health-Focused Responses**: Provides accurate and fact-checked answers to health-related questions using context from web searches and a FAISS vector store.
 - **General Query Support**: Answers non-health-related questions with relevant and verified information.
 - **Real-Time Web Search**: Utilizes the Serper.dev API to fetch up-to-date information from the top 5 search result snippets.
+- **PDF Processing and Vector Store**: Loads and processes health-related PDFs (e.g., `disease_symptoms.pdf`), splits them into chunks, and creates a FAISS vector store using SentenceTransformer embeddings for efficient retrieval.
 - **Dual-Model Processing**:
   - Uses `llama-3.3-70b-versatile` for generating raw answers.
   - Refines answers with `qwen/qwen3-32b` for improved accuracy, clarity, and structure.
@@ -24,6 +25,7 @@ To run talkDOC, you need the following:
   - `GROQ_API_KEY`: Obtain from [xAI](https://x.ai/api)
 - Internet connection for API requests
 - Microphone for voice input (for Streamlit interface)
+- Health-related PDF files (e.g., `disease_symptoms.pdf`) in the `data/` directory for vector store creation
 
 ## Installation
 1. **Clone the Repository**:
@@ -48,6 +50,9 @@ To run talkDOC, you need the following:
    python-dotenv
    langchain-groq
    langchain-core
+   langchain-community
+   sentence-transformers
+   faiss-cpu
    streamlit
    speechrecognition
    pydub
@@ -63,8 +68,11 @@ To run talkDOC, you need the following:
    GROQ_API_KEY=your-groq-api-key
    ```
 
+5. **Prepare PDF Data**:
+   Place health-related PDF files (e.g., `disease_symptoms.pdf`) in the `data/` directory for processing.
+
 ## Usage
-talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web app.
+talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web app. Additionally, it includes a script to process PDFs and create a FAISS vector store for enhanced query responses.
 
 ### Terminal Interface
 1. **Run the Chatbot**:
@@ -75,12 +83,12 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 
 2. **Interact with talkDOC**:
    - Type your question (e.g., "What are the symptoms of a cold?").
-   - The chatbot fetches relevant context from the top 5 web search snippets, generates a raw answer using `llama-3.3-70b-versatile`, and refines it with `qwen/qwen3-32b` for accuracy and clarity.
+   - The chatbot fetches relevant context from the top 5 web search snippets and the FAISS vector store, generates a raw answer using `llama-3.3-70b-versatile`, and refines it with `qwen/qwen3-32b` for accuracy and clarity.
    - To exit, type `exit` or `quit`.
 
 3. **Example Interaction**:
    ```
-   🤖 AI Doctor Chatbot (Refined with Google Search + Qwen-3-32B)
+   🤖 AI Doctor Chatbot (Refined with Google Search + Qwen-3-32B + FAISS)
 
    You: What are the symptoms of a cold?
    --- Refined Answer ---
@@ -106,7 +114,7 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 2. **Interact with talkDOC**:
    - Record a voice question using the microphone input.
    - Press the **Send** button to process the query.
-   - The app detects the language (Bangla or English), translates to English if necessary, queries the AI, and provides a refined response in text and audio.
+   - The app detects the language (Bangla or English), translates to English if necessary, queries the AI with context from the FAISS vector store and web search, and provides a refined response in text and audio.
    - View the transcript of your question and the AI's response on the screen.
 
 3. **Example Interaction**:
@@ -124,6 +132,34 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
      ```
    - An audio response is played in the detected language.
 
+### PDF Processing and Vector Store Creation
+1. **Run the PDF Processing Script**:
+   ```bash
+   python pdf_processor.py
+   ```
+   This script processes a PDF file (e.g., `disease_symptoms.pdf`), splits it into chunks, creates embeddings using the `all-MiniLM-L6-v2` SentenceTransformer model, and stores them in a FAISS vector store.
+
+2. **Steps Performed**:
+   - Loads the PDF from the `data/` directory.
+   - Splits the PDF content into chunks (1000 characters with 100-character overlap).
+   - Generates embeddings using the SentenceTransformer model (`all-MiniLM-L6-v2`).
+   - Creates a FAISS vector store and saves it locally as `faiss_index_sentence`.
+
+3. **Output**:
+   ```
+   📂 Step 1: Loading PDF...
+   ✅ Loaded X pages from PDF
+   ✂️ Step 2: Splitting text into chunks...
+   ✅ Created Y chunks
+   🧠 Step 3: Loading embedding model → all-MiniLM-L6-v2
+   ✅ Model loaded successfully
+   📦 Step 4: Creating FAISS index...
+   🔍 Embedding Chunks: 100%|█████████████████████| Y/Y [00:XX<00:01, Z chunks/s]
+   ✅ FAISS index created
+   💾 Step 5: FAISS index saved as 'faiss_index_sentence'
+   🎉 All steps completed successfully!
+   ```
+
 ## Code Structure
 - **backend.py**: Main script for the terminal-based chatbot, handling LLM-related logic.
   - `retrieve_docs`: Fetches top 5 search result snippets using Serper.dev API.
@@ -135,6 +171,10 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 - **frontend.py**: Script for the Streamlit web interface.
   - Handles voice input, speech-to-text, language detection, translation, and text-to-speech.
   - Integrates with `answer_query` from `backend.py` for AI responses.
+- **pdf_processor.py**: Script for processing PDFs and creating a FAISS vector store.
+  - Loads and splits PDF content using `PyPDFLoader` and `RecursiveCharacterTextSplitter`.
+  - Generates embeddings with a custom `SentenceTransformerEmbeddings` class.
+  - Creates and saves a FAISS vector store using `langchain_community.vectorstores.FAISS`.
 - **.env**: Stores API keys for Serper.dev and Groq.
 - **requirements.txt**: Lists required Python packages.
 
@@ -143,6 +183,9 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 - `python-dotenv`: For loading environment variables from a `.env` file.
 - `langchain-groq`: For integrating with Groq language models (`llama-3.3-70b-versatile` and `qwen/qwen3-32b`).
 - `langchain-core`: For building prompt and chain logic.
+- `langchain-community`: For PDF loading and FAISS vector store functionality.
+- `sentence-transformers`: For generating embeddings using the `all-MiniLM-L6-v2` model.
+- `faiss-cpu`: For creating and managing the FAISS vector store.
 - `streamlit`: For the web-based user interface.
 - `speechrecognition`: For converting voice input to text.
 - `pydub`: For audio file processing.
@@ -154,6 +197,7 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 - **Health Advice**: talkDOC is not a substitute for professional medical advice. Always consult a licensed healthcare provider for medical concerns.
 - **API Dependency**: Requires valid API keys and an internet connection.
 - **Search Results**: Limited to the top 5 snippets from Serper.dev, which may not always cover all relevant information.
+- **Vector Store**: The FAISS vector store is limited to the content of provided PDFs and the quality of embeddings.
 - **Voice Input**: Requires a working microphone and may be affected by background noise or accents.
 - **Language Support**: Currently supports Bangla and English; other languages may require additional configuration.
 
