@@ -59,6 +59,7 @@ To run talkDOC, you need the following:
    langdetect
    deep-translator
    gtts
+   groq
    ```
 
 4. **Configure Environment Variables**:
@@ -114,7 +115,8 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 2. **Interact with talkDOC**:
    - Record a voice question using the microphone input or type a question in the text input field.
    - Press the **Send Voice** or **Send Text** button to process the query.
-   - The app detects the language (Bangla or English), translates to English if necessary, queries the AI with context from the FAISS vector store and web search, and provides a refined response in text and audio.
+   - The app detects the language (Bangla or English), translates to English if necessary, checks if the question is health-related, and queries the AI with context from the FAISS vector store and web search, providing a refined response in text and audio.
+   - Non-medical questions receive a message indicating that only health-related queries are supported.
    - View the transcript of your question and the AI's response on the screen.
 
 3. **Example Interaction**:
@@ -131,6 +133,11 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
      Summary: A cold causes nasal congestion, sore throat, coughing, sneezing, and mild fatigue, usually resolving in a week or two.
      ```
    - An audio response is played in the detected language.
+   - For a non-medical question (e.g., "What is the capital of France?"):
+     ```
+     🗣️ You said: What is the capital of France?
+     🤖 AI Doctor: I’m sorry, I can only provide medical and health-related suggestions. I won’t be able to answer questions outside this topic.
+     ```
 
 ### PDF Processing and Vector Store Creation
 1. **Run the PDF Processing Script**:
@@ -179,9 +186,10 @@ The following features have been implemented in the `backend.py` and `frontend.p
 - **Voice Input**: Supports audio input via Streamlit's `st.audio_input`, storing recordings temporarily in session state and converting them to WAV format using `pydub` for speech recognition.
 - **Speech-to-Text**: Uses `speechrecognition` with Google's speech recognition API to convert audio input to text.
 - **Language Detection and Translation**: Detects the input language (Bangla or English) using `langdetect` and translates Bangla to English (and vice versa for responses) using `deep-translator` with Google Translator.
+- **Medical Question Classifier**: Uses the Groq API with the `llama-3.1-8b-instant` model to classify whether a question is health-related (e.g., about diseases, symptoms, treatments). Non-medical questions receive a polite refusal message in the detected language (e.g., "I’m sorry, I can only provide medical and health-related suggestions" in English or "Sorry, ami bairer question er answer dite parbo na" in Bangla).
 - **Text-to-Speech**: Generates audio responses using `gTTS` in the detected language (Bangla or English), saved as temporary MP3 files and played via Streamlit's `st.audio`.
-- **Text Input**: Provides an alternative text input field for users to type questions, with the same language detection and translation workflow.
-- **Integration with Backend**: Calls the `answer_query` function from `backend.py` to process queries and retrieve refined AI responses.
+- **Text Input**: Provides an alternative text input field for users to type questions, with the same language detection, translation, and classification workflow.
+- **Integration with Backend**: Calls the `answer_query` function from `backend.py` to process health-related queries and retrieve refined AI responses.
 - **User Feedback**: Displays transcripts of user input and AI responses, with error handling for invalid inputs (e.g., empty text or no audio) and processing feedback via spinners.
 
 ## Code Structure
@@ -194,7 +202,7 @@ The following features have been implemented in the `backend.py` and `frontend.p
   - `answer_query`: Combines context retrieval, raw answer generation, and refinement.
   - Interactive loop for terminal-based chat.
 - **frontend.py**: Script for the Streamlit web interface.
-  - Handles voice input, speech-to-text, language detection, translation, and text-to-speech.
+  - Handles voice input, speech-to-text, language detection, translation, medical question classification, and text-to-speech.
   - Integrates with `answer_query` from `backend.py` for AI responses.
 - **pdf_processor.py**: Script for processing PDFs and creating a FAISS vector store.
   - Loads and splits PDF content using `PyPDFLoader` and `RecursiveCharacterTextSplitter`.
@@ -217,6 +225,7 @@ The following features have been implemented in the `backend.py` and `frontend.p
 - `langdetect`: For detecting the language of user input.
 - `deep-translator`: For translating between Bangla and English.
 - `gtts`: For generating text-to-speech audio responses.
+- `groq`: For direct interaction with the Groq API for medical question classification.
 
 ## Limitations
 - **Health Advice**: talkDOC is not a substitute for professional medical advice. Always consult a licensed healthcare provider for medical concerns.
@@ -225,6 +234,7 @@ The following features have been implemented in the `backend.py` and `frontend.p
 - **Vector Store**: The FAISS vector store is limited to the content of provided PDFs and the quality of embeddings.
 - **Voice Input**: Requires a working microphone and may be affected by background noise or accents.
 - **Language Support**: Currently supports Bangla and English; other languages may require additional configuration.
+- **Question Scope**: Only responds to health-related questions due to the medical question classifier; non-medical queries are politely declined.
 
 ## Contributing
 Contributions are welcome! To contribute:
