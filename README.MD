@@ -112,14 +112,14 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
    This launches the web interface in your default browser.
 
 2. **Interact with talkDOC**:
-   - Record a voice question using the microphone input.
-   - Press the **Send** button to process the query.
+   - Record a voice question using the microphone input or type a question in the text input field.
+   - Press the **Send Voice** or **Send Text** button to process the query.
    - The app detects the language (Bangla or English), translates to English if necessary, queries the AI with context from the FAISS vector store and web search, and provides a refined response in text and audio.
    - View the transcript of your question and the AI's response on the screen.
 
 3. **Example Interaction**:
-   - Record: "What are the symptoms of a cold?" (in English or Bangla).
-   - After pressing **Send**, the app displays:
+   - Record or type: "What are the symptoms of a cold?" (in English or Bangla).
+   - After pressing **Send Voice** or **Send Text**, the app displays:
      ```
      🗣️ You said: What are the symptoms of a cold?
      🤖 AI Doctor: Common symptoms of a cold include:
@@ -135,7 +135,7 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
 ### PDF Processing and Vector Store Creation
 1. **Run the PDF Processing Script**:
    ```bash
-   python pdf_processor.py
+   python memory.py
    ```
    This script processes a PDF file (e.g., `disease_symptoms.pdf`), splits it into chunks, creates embeddings using the `all-MiniLM-L6-v2` SentenceTransformer model, and stores them in a FAISS vector store.
 
@@ -160,12 +160,37 @@ talkDOC supports two interfaces: a terminal-based chatbot and a Streamlit web ap
    🎉 All steps completed successfully!
    ```
 
+## Implemented Features in backend.py and frontend.py
+The following features have been implemented in the `backend.py` and `frontend.py` scripts to enable the core functionality of talkDOC:
+
+### Backend (backend.py)
+- **Environment Setup**: Loads API keys (`SERPER_API_KEY` and `GROQ_API_KEY`) from a `.env` file using `python-dotenv` for secure configuration.
+- **Dual LLM Integration**: Utilizes two Groq models:
+  - `llama-3.3-70b-versatile` for generating raw answers based on FAISS context.
+  - `qwen/qwen3-32b` for refining answers with additional Google search context.
+- **FAISS Vector Store**: Loads a pre-built FAISS index (`faiss_index_sentence`) with SentenceTransformer embeddings (`all-MiniLM-L6-v2`) for retrieving relevant health-related context from processed PDFs.
+- **Google Search Integration**: Uses the Serper.dev API to fetch the top 5 search result snippets for real-time context, enhancing answer accuracy.
+- **Prompt Engineering**: Implements `ChatPromptTemplate` for structured prompts to generate raw and refined answers, ensuring clear and professional responses.
+- **Answer Refinement**: Combines FAISS context and Google search results to produce fact-checked, concise, and patient-friendly answers with bullet points or steps and a summary.
+- **Interactive CLI**: Provides a command-line interface for text-based queries, with error handling and an exit mechanism (`exit` or `quit`).
+
+### Frontend (frontend.py)
+- **Streamlit Web Interface**: Creates a user-friendly web app with Streamlit, featuring a centered layout, custom title (`talkDOC - Voice Doctor Assistant`), and a footer disclaimer.
+- **Voice Input**: Supports audio input via Streamlit's `st.audio_input`, storing recordings temporarily in session state and converting them to WAV format using `pydub` for speech recognition.
+- **Speech-to-Text**: Uses `speechrecognition` with Google's speech recognition API to convert audio input to text.
+- **Language Detection and Translation**: Detects the input language (Bangla or English) using `langdetect` and translates Bangla to English (and vice versa for responses) using `deep-translator` with Google Translator.
+- **Text-to-Speech**: Generates audio responses using `gTTS` in the detected language (Bangla or English), saved as temporary MP3 files and played via Streamlit's `st.audio`.
+- **Text Input**: Provides an alternative text input field for users to type questions, with the same language detection and translation workflow.
+- **Integration with Backend**: Calls the `answer_query` function from `backend.py` to process queries and retrieve refined AI responses.
+- **User Feedback**: Displays transcripts of user input and AI responses, with error handling for invalid inputs (e.g., empty text or no audio) and processing feedback via spinners.
+
 ## Code Structure
 - **backend.py**: Main script for the terminal-based chatbot, handling LLM-related logic.
-  - `retrieve_docs`: Fetches top 5 search result snippets using Serper.dev API.
-  - `get_context`: Combines snippets into a context string.
+  - `retrieve_docs_google`: Fetches top 5 search result snippets using Serper.dev API.
+  - `get_google_context`: Combines snippets into a context string.
+  - `get_vector_context`: Retrieves context from FAISS vector store.
   - `generate_with_groq`: Generates raw answers using `llama-3.3-70b-versatile`.
-  - `refine_with_groq`: Refines answers using `qwen/qwen3-32b` with additional context.
+  - `refine_with_groq`: Refines answers using `qwen/qwen3-32b` with additional Google context.
   - `answer_query`: Combines context retrieval, raw answer generation, and refinement.
   - Interactive loop for terminal-based chat.
 - **frontend.py**: Script for the Streamlit web interface.

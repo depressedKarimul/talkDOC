@@ -13,20 +13,20 @@ st.set_page_config(page_title="talkDOC - Voice Doctor", page_icon="🩺", layout
 
 # Title
 st.title("🩺 talkDOC - Voice Doctor Assistant")
-st.markdown("🎙️ Record your health-related question, then press **Send** to get an answer.")
+st.markdown("🎙️ Record your health-related question or type it below, then press **Send** to get an answer.")
 
 # Session state for storing audio
 if "voice_file" not in st.session_state:
     st.session_state.voice_file = None
 
-# Voice input (record / upload)
+# ---------------- Voice Input ----------------
 audio_file = st.audio_input("Record your question here...")
 
 if audio_file is not None:
     st.session_state.voice_file = audio_file  # store temporarily
-    st.success("✅ Voice recorded. Now press **Send** to get answer.")
+    st.success("✅ Voice recorded. Now press **Send Voice** to get answer.")
 
-# Send button
+# Send Voice button (existing functionality)
 if st.button("Send Voice"):
     if st.session_state.voice_file is None:
         st.warning("⚠️ Please record your question first.")
@@ -41,7 +41,8 @@ if st.button("Send Voice"):
                 # Convert to WAV if necessary
                 if not wav_path.endswith(".wav"):
                     sound = AudioSegment.from_file(wav_path)
-                    wav_path = wav_path.replace(".ogg", ".wav").replace(".mp3", ".wav")
+                    tmp_wav_conv = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+                    wav_path = tmp_wav_conv.name
                     sound.export(wav_path, format="wav")
 
                 # Speech to Text
@@ -81,6 +82,46 @@ if st.button("Send Voice"):
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
 
+# ---------------- Text Input ----------------
+user_text_input = st.text_input("Or type your question here:", "")
+
+if st.button("Send Text"):
+    if not user_text_input.strip():
+        st.warning("⚠️ Please type your question first.")
+    else:
+        try:
+            with st.spinner("⏳ Generating answer... Please wait..."):
+                # Detect language
+                lang = detect(user_text_input)
+
+                # Translate to English if Bangla
+                if lang == "bn":
+                    user_text_en = GoogleTranslator(source="bn", target="en").translate(user_text_input)
+                else:
+                    user_text_en = user_text_input
+
+                # Call backend AI Doctor
+                ai_response_en = answer_query(user_text_en)
+
+                # Translate back to Bangla if needed
+                if lang == "bn":
+                    ai_response = GoogleTranslator(source="en", target="bn").translate(ai_response_en)
+                else:
+                    ai_response = ai_response_en
+
+                # Text to Speech
+                tts = gTTS(ai_response, lang="bn" if lang == "bn" else "en")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_mp3:
+                    tts.save(tmp_mp3.name)
+                    st.audio(tmp_mp3.name, format="audio/mp3")
+
+                # Show transcripts
+                st.markdown(f"**🗣️ You asked:** {user_text_input}")
+                st.markdown(f"**🤖 AI Doctor:** {ai_response}")
+
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+
 # Footer
 st.markdown(
     '<div style="text-align:center;color:#666;margin-top:20px;font-size:14px;">'
@@ -88,7 +129,3 @@ st.markdown(
     '</div>',
     unsafe_allow_html=True
 )
-
-
-# backend.py
-
