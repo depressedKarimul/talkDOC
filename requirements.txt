@@ -2,9 +2,13 @@ requests
 python-dotenv
 langchain-groq
 langchain-core
+langchain-community
+sentence-transformers
+faiss-cpu
 streamlit
 speechrecognition
 pydub
 langdetect
 deep-translator
 gtts
+groq
