@@ -1,5 +1,13 @@
-from sentence_transformers import SentenceTransformer
+from datasets import load_dataset
+import pandas as pd
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
-vector = model.encode("Hello Bangladesh", convert_to_numpy=True)
-print(vector.shape)   # should print (384,)
+
+ds = load_dataset("sajjadhadi/disease-diagnosis-dataset")
+
+
+train_df = pd.DataFrame(ds['train'])
+test_df = pd.DataFrame(ds['test'])
+
+# CSV হিসেবে সেভ করো
+train_df.to_csv("symptom_disease_train.csv", index=False)
+test_df.to_csv("symptom_disease_test.csv", index=False)

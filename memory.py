@@ -1,32 +1,46 @@
 import os
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from datasets import load_dataset
 from langchain_community.vectorstores import FAISS
 from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
-from tqdm import tqdm  # progress bar
 
-# 1. Load environment variables
+# -----------------------------
+# 1️⃣ Load environment variables
+# -----------------------------
 load_dotenv()
 
-print("📂 Step 1: Loading PDF...")
-loader = PyPDFLoader("data/disease_symptoms.pdf")
-docs = loader.load()
-print(f"✅ Loaded {len(docs)} pages from PDF")
+print("📥 Step 1: Loading Symptom-Disease Dataset...")
+dataset = load_dataset("sajjadhadi/disease-diagnosis-dataset")
+data = dataset["train"]
+print(f"✅ Loaded {len(data)} records from dataset")
 
-# 2. Split into chunks
-print("✂️ Step 2: Splitting text into chunks...")
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-chunks = splitter.split_documents(docs)
-print(f"✅ Created {len(chunks)} chunks")
+# -----------------------------
+# 2️⃣ Column names
+# -----------------------------
+print(f"🧩 Available columns: {data.column_names}")
+symptom_col = "text"
+disease_col = "diagnosis"  
+print(f"✅ Using columns → Symptoms: '{symptom_col}' | Disease: '{disease_col}'")
 
-# 3. SentenceTransformer wrapper
+# -----------------------------
+# 3️⃣ Prepare text data
+# -----------------------------
+print("🧠 Step 2: Preparing text data...")
+texts = [
+    f"Symptoms: {item[symptom_col]} -> Disease: {item[disease_col]}"
+    for item in data
+]
+print(f"✅ Created {len(texts)} text entries for embedding")
+
+# -----------------------------
+# 4️⃣ SentenceTransformer embedding wrapper
+# -----------------------------
 class SentenceTransformerEmbeddings(Embeddings):
     def __init__(self, model_name="all-MiniLM-L6-v2"):
         print(f"🧠 Step 3: Loading embedding model → {model_name}")
         self.model = SentenceTransformer(model_name)
-        print("✅ Model loaded successfully")
+        print("✅ Embedding model loaded successfully")
 
     def embed_documents(self, texts):
         print(f"🔄 Embedding {len(texts)} documents...")
@@ -35,15 +49,17 @@ class SentenceTransformerEmbeddings(Embeddings):
     def embed_query(self, text):
         return self.model.encode([text], convert_to_numpy=True)[0].tolist()
 
-# 4. Initialize embedding object
+# -----------------------------
+# 5️⃣ Initialize embedding
+# -----------------------------
 embedding = SentenceTransformerEmbeddings()
 
-# 5. Store in FAISS
+# -----------------------------
+# 6️⃣ Create and save FAISS index
+# -----------------------------
 print("📦 Step 4: Creating FAISS index...")
-vectorstore = FAISS.from_documents(tqdm(chunks, desc="🔍 Embedding Chunks"), embedding=embedding)
-print("✅ FAISS index created")
+vectorstore = FAISS.from_texts(texts, embedding=embedding)
+vectorstore.save_local("faiss_symptom_disease")
 
-# 6. Save index locally
-vectorstore.save_local("faiss_index_sentence")
-print("💾 Step 5: FAISS index saved as 'faiss_index_sentence'")
+print("💾 Step 5: FAISS index saved as 'faiss_symptom_disease'")
 print("🎉 All steps completed successfully!")
