@@ -8,6 +8,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from sentence_transformers import SentenceTransformer
 from langchain_core.embeddings import Embeddings
+from groq import Groq
+import base64
 
 # ==========================================================
 # 1️⃣ Load Environment Variables (.env)
@@ -24,6 +26,10 @@ if not SERPER_API_KEY or not GROQ_API_KEY:
 # ==========================================================
 llm_groq_main = ChatGroq(model="llama-3.3-70b-versatile", api_key=GROQ_API_KEY)
 llm_groq_refine = ChatGroq(model="qwen/qwen3-32b", api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+CLASSIFIER_MODEL = "llama-3.1-8b-instant"
 
 # ==========================================================
 # 3️⃣ Define Custom Embedding Class
@@ -144,7 +150,56 @@ Final Refined Answer:
     return refined
 
 # ==========================================================
-# 9️⃣ Full Query → Answer Pipeline
+# 9️⃣ Helper Functions (Moved from Frontend)
+# ==========================================================
+
+def is_medical_question(text: str) -> bool:
+    """Checks if given text is related to medical or health topics."""
+    prompt = f"""
+    You are a strict classifier. Determine if the following content is related to
+    health, medicine, diseases, symptoms, treatments, or healthcare.
+    Reply only with YES or NO.
+
+    Content: "{text}"
+    """
+    response = groq_client.chat.completions.create(
+        model=CLASSIFIER_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=5,
+        temperature=0
+    )
+    result = response.choices[0].message.content.strip().upper()
+    return result.startswith("YES")
+
+
+def analyze_image_with_llama(image_bytes, question=None):
+    """Uses meta-llama/llama-4-scout-17b-16e-instruct to describe an uploaded image."""
+    prompt = question if question else "Describe this medical or skin image in detail."
+
+    img_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = groq_client.chat.completions.create(
+        model=VISION_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}
+                    }
+                ],
+            }
+        ],
+        max_tokens=600,
+        temperature=0.3,
+    )
+
+    return response.choices[0].message.content.strip()
+
+# ==========================================================
+# 🔟 Full Query → Answer Pipeline
 # ==========================================================
 def answer_query(query: str) -> str:
     print(f"\n🔍 Processing query: {query}")

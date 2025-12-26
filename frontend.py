@@ -6,72 +6,16 @@ import speech_recognition as sr
 from pydub import AudioSegment
 from langdetect import detect
 from deep_translator import GoogleTranslator
-from backend import answer_query
-from groq import Groq
+from backend import answer_query, is_medical_question, analyze_image_with_llama
 from dotenv import load_dotenv
 
 # =================== Load API Keys ===================
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GROQ_API_KEY:
-    st.error("❌ Please set GROQ_API_KEY in your .env file.")
-    st.stop()
-
-# =================== Groq Client ===================
-client = Groq(api_key=GROQ_API_KEY)
-
-# =================== Model Names ===================
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-CLASSIFIER_MODEL = "llama-3.1-8b-instant"
 
 # =================== Helper Functions ===================
 
-def is_medical_question(text: str) -> bool:
-    """Checks if given text is related to medical or health topics."""
-    prompt = f"""
-    You are a strict classifier. Determine if the following content is related to
-    health, medicine, diseases, symptoms, treatments, or healthcare.
-    Reply only with YES or NO.
 
-    Content: "{text}"
-    """
-    response = client.chat.completions.create(
-        model=CLASSIFIER_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=5,
-        temperature=0
-    )
-    result = response.choices[0].message.content.strip().upper()
-    return result.startswith("YES")
-
-
-def analyze_image_with_llama(image_file, question=None):
-    """Uses meta-llama/llama-4-scout-17b-16e-instruct to describe an uploaded image."""
-    prompt = question if question else "Describe this medical or skin image in detail."
-
-    img_bytes = image_file.read()
-    img_base64 = base64.b64encode(img_bytes).decode("utf-8")
-
-    response = client.chat.completions.create(
-        model=VISION_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}
-                    }
-                ],
-            }
-        ],
-        max_tokens=600,
-        temperature=0.3,
-    )
-
-    return response.choices[0].message.content.strip()
 
 
 # =================== Streamlit UI ===================
@@ -89,7 +33,7 @@ if st.button("Analyze Image"):
     else:
         with st.spinner("⏳ Analyzing image..."):
             # Step 1: Vision model description
-            image_description = analyze_image_with_llama(image_file, image_question)
+            image_description = analyze_image_with_llama(image_file.read(), image_question)
             st.markdown(f"**Description:** {image_description}")
 
             # Step 2: Check if description is medical

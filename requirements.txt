@@ -12,3 +12,6 @@ langdetect
 deep-translator
 gtts
 groq
+fastapi
+uvicorn
+python-multipart
